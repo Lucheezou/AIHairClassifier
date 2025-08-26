@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Configuration - UPDATED FOR OPTIMIZED MODEL
+# Configuration - Environment variables for Heroku deployment
 CONFIG = {
-    'project_id': '799143320054',
-    'location': 'us-central1',
-    'service_account_path': 'key.json',
-    'endpoint_id': '5144169604154654720',  # Your optimized model endpoint
+    'project_id': os.environ.get('GCP_PROJECT_ID', '799143320054'),
+    'location': os.environ.get('GCP_LOCATION', 'us-central1'),
+    'service_account_json': os.environ.get('GOOGLE_CREDENTIALS'),  # JSON string from env
+    'endpoint_id': os.environ.get('VERTEX_AI_ENDPOINT_ID', '5144169604154654720'),
 }
 
 # Hair color classes (must match training order)
@@ -166,11 +166,20 @@ class OptimizedVertexAIEndpointPredictor:
                 logger.warning("⚠️ Endpoint ID not configured! Please run the deployment script first.")
                 return
             
-            # Setup credentials
-            credentials = service_account.Credentials.from_service_account_file(
-                CONFIG['service_account_path'],
-                scopes=['https://www.googleapis.com/auth/cloud-platform']
-            )
+            # Setup credentials from environment variable JSON string
+            if CONFIG['service_account_json']:
+                # Parse JSON string from environment variable
+                service_account_info = json.loads(CONFIG['service_account_json'])
+                credentials = service_account.Credentials.from_service_account_info(
+                    service_account_info,
+                    scopes=['https://www.googleapis.com/auth/cloud-platform']
+                )
+            else:
+                # Fallback to file-based credentials for local development
+                credentials = service_account.Credentials.from_service_account_file(
+                    'key.json',
+                    scopes=['https://www.googleapis.com/auth/cloud-platform']
+                )
             
             # Initialize Vertex AI
             aiplatform.init(
