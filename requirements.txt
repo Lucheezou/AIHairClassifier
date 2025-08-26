@@ -1,6 +1,0 @@
-Flask
-Flask-CORS
-Pillow
-groq
-python-dotenv
-gunicorn
