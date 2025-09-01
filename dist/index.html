@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hair Color Classifier - Infinity Braids® | Custom AI Model</title>
+    <title>Hair Color Classifier - Infinity Braids® | AutoML Model</title>
     <style>
         * {
             margin: 0;
@@ -232,6 +232,16 @@
             line-height: 1.4;
             font-weight: 500;
         }
+        
+        .detected-class {
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            border-radius: 5px;
+            font-size: 0.85rem;
+            color: #27ae60;
+        }
 
         .loading {
             display: none;
@@ -297,6 +307,16 @@
             font-size: 0.9rem;
             color: #2c3e50;
         }
+        
+        .model-info-details {
+            background: rgba(52, 152, 219, 0.05);
+            border: 1px solid rgba(52, 152, 219, 0.2);
+            border-radius: 10px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.85rem;
+            color: #34495e;
+        }
 
         @media (max-width: 768px) {
             .header h1 {
@@ -324,7 +344,7 @@
             <h1>Hair Color Classifier</h1>
             <p>Upload your photo to find the perfect Infinity Braids® match</p>
             <div class="model-badge" id="modelBadge">
-                🤖 Custom AI Model - Trained on Hair Data
+                🤖 AutoML Model - Hair Color Expert
             </div>
         </div>
 
@@ -376,7 +396,7 @@
 
     <script>
         let selectedImage = null;
-        const API_BASE_URL = 'http://localhost:5000'; // Your Flask backend URL
+        const API_BASE_URL = 'https://aihairclassifier.onrender.com'; // Your Flask backend URL
 
         // File input handling
         document.getElementById('imageInput').addEventListener('change', handleImageSelect);
@@ -479,8 +499,8 @@
         }
 
         function showResults(result) {
-            // Display hair category
-            document.getElementById('hairCategory').textContent = result.predicted_category.replace(/_/g, ' ');
+            // Display AutoML hair category (specific color name like "Diamond Frost")
+            document.getElementById('hairCategory').textContent = result.predicted_category;
             
             // Display confidence score
             const confidence = parseFloat(result.confidence);
@@ -488,9 +508,19 @@
             document.getElementById('confidenceScore').textContent = `Confidence: ${confidencePercent}%`;
             
             // Update model info based on response
-            const modelType = result.model_type || 'custom_vertex_ai';
-            document.getElementById('modelInfo').textContent = 
-                modelType === 'custom_vertex_ai' ? 'Classified by Custom Vertex AI Model' : 'Classified by Custom Vertex AI Model';
+            const modelType = result.model_type || 'automl_vertex_ai';
+            let modelInfoText = 'Classified by AutoML Vertex AI Model';
+            
+            const modelInfoElement = document.getElementById('modelInfo');
+            modelInfoElement.innerHTML = `
+                ${modelInfoText}<br>
+                <div class="model-info-details">
+                    Detected Color: <strong>${result.predicted_category}</strong><br>
+                    Product Category: ${result.generic_category ? result.generic_category.replace(/_/g, ' ') : 'N/A'}<br>
+                    Architecture: ${result.architecture || 'N/A'}<br>
+                    Input Size: ${result.input_size || 'N/A'}
+                </div>
+            `;
             
             // Display products
             const productsGrid = document.getElementById('productsGrid');
@@ -498,7 +528,7 @@
 
             if (result.suggested_products && result.suggested_products.length > 0) {
                 result.suggested_products.forEach(product => {
-                    const productCard = createProductCard(product);
+                    const productCard = createProductCard(product, result.predicted_category);
                     productsGrid.appendChild(productCard);
                 });
             } else {
@@ -508,13 +538,19 @@
             document.getElementById('resultsSection').style.display = 'block';
         }
 
-        function createProductCard(product) {
+        function createProductCard(product, detectedClass) {
             const card = document.createElement('div');
             card.className = 'product-card';
+            
+            // Show the detected class in the product card if available
+            const detectedInfo = product.detected_color_class ? 
+                `<div class="detected-class">Matches detected: <strong>${product.detected_color_class}</strong></div>` : 
+                (detectedClass ? `<div class="detected-class">Matches detected: <strong>${detectedClass}</strong></div>` : '');
             
             card.innerHTML = `
                 <div class="product-sku">${product.sku}</div>
                 <div class="product-name">${product.name}</div>
+                ${detectedInfo}
             `;
             
             return card;
@@ -552,38 +588,61 @@
                 
                 const healthData = await healthResponse.json();
                 console.log('Backend connection successful');
-                console.log('Model status:', healthData.model_status);
+                console.log('Health data:', healthData);
                 
-                // Update status indicator
-                const statusIndicator = document.getElementById('statusIndicator');
-                const modelBadge = document.getElementById('modelBadge');
+                // Update UI based on health data
+                updateModelUI(healthData);
                 
-                if (healthData.model_status === 'loaded') {
-                    statusIndicator.style.background = '#2ecc71';
-                    modelBadge.textContent = '🤖 Custom AI Model - Ready';
-                } else {
-                    statusIndicator.style.background = '#f39c12';
-                    modelBadge.textContent = '🤖 Custom AI Model - Ready';
-                }
-                
-                // Get model info
+                // Get model info and categories
                 const modelResponse = await fetch(`${API_BASE_URL}/model-info`);
+                const categoriesResponse = await fetch(`${API_BASE_URL}/categories`);
+                
                 if (modelResponse.ok) {
                     const modelInfo = await modelResponse.json();
                     console.log('Model info:', modelInfo);
                 }
                 
+                if (categoriesResponse.ok) {
+                    const categoriesInfo = await categoriesResponse.json();
+                    console.log('Categories info:', categoriesInfo);
+                }
+                
             } catch (error) {
                 console.warn('Backend connection failed:', error);
-                const statusIndicator = document.getElementById('statusIndicator');
-                const modelBadge = document.getElementById('modelBadge');
-                
-                statusIndicator.style.background = '#e74c3c';
-                modelBadge.textContent = '🤖 Custom AI Model - Offline';
-                
+                updateModelUIOffline();
                 showError('Backend service is not available. Please make sure the Python server is running on localhost:5000');
             }
         });
+        
+        function updateModelUI(healthData) {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const modelBadge = document.getElementById('modelBadge');
+            
+            // Determine AutoML model status
+            let isReady = healthData.automl_endpoint_ready || healthData.automl_model_ready;
+            let modelText = '';
+            
+            if (healthData.automl_endpoint_ready) {
+                modelText = '🤖 AutoML Model - Endpoint Ready';
+                statusIndicator.style.background = '#2ecc71';
+            } else if (healthData.automl_model_ready) {
+                modelText = '🤖 AutoML Model - Direct Access';
+                statusIndicator.style.background = '#27ae60';
+            } else {
+                modelText = '🤖 AutoML Model - Not Ready';
+                statusIndicator.style.background = '#f39c12';
+            }
+            
+            modelBadge.textContent = modelText;
+        }
+        
+        function updateModelUIOffline() {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const modelBadge = document.getElementById('modelBadge');
+            
+            statusIndicator.style.background = '#e74c3c';
+            modelBadge.textContent = '🤖 AutoML Model - Offline';
+        }
     </script>
 </body>
 </html>
