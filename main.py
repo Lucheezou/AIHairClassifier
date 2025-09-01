@@ -9,6 +9,10 @@ from google.cloud import aiplatform
 from google.oauth2 import service_account
 import logging
 import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,11 +23,11 @@ CORS(app)
 
 # Configuration - AUTOML MODEL ONLY
 CONFIG = {
-    'project_id': '799143320054',
-    'location': 'us-central1',
-    'service_account_path': 'key.json',
-    'automl_model_id': 6449544993022410752,  # Your AutoML model ID
-    'automl_endpoint_id': 6449544993022410752,  # Set this when you deploy the AutoML model
+    'project_id': os.getenv('PROJECT_ID', '799143320054'),
+    'location': os.getenv('LOCATION', 'us-central1'),
+    'service_account_json': os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON'),
+    'automl_model_id': int(os.getenv('AUTOML_MODEL_ID', '6449544993022410752')),
+    'automl_endpoint_id': int(os.getenv('AUTOML_ENDPOINT_ID', '6449544993022410752')),
 }
 
 # Hair color classes (must match training order)
@@ -201,9 +205,13 @@ class AutoMLVertexAIPredictor:
     def _initialize_vertex_ai(self):
         """Initialize Vertex AI and get the AutoML model/endpoint"""
         try:
-            # Setup credentials
-            credentials = service_account.Credentials.from_service_account_file(
-                CONFIG['service_account_path'],
+            # Setup credentials from environment JSON string
+            if not CONFIG['service_account_json']:
+                raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON environment variable not set")
+            
+            service_account_info = json.loads(CONFIG['service_account_json'])
+            credentials = service_account.Credentials.from_service_account_info(
+                service_account_info,
                 scopes=['https://www.googleapis.com/auth/cloud-platform']
             )
             
@@ -311,8 +319,9 @@ class AutoMLVertexAIPredictor:
             from google.auth.transport.requests import Request
             
             # Get credentials and access token
-            credentials = service_account.Credentials.from_service_account_file(
-                CONFIG['service_account_path'],
+            service_account_info = json.loads(CONFIG['service_account_json'])
+            credentials = service_account.Credentials.from_service_account_info(
+                service_account_info,
                 scopes=['https://www.googleapis.com/auth/cloud-platform']
             )
             credentials.refresh(Request())
